@@ -46,17 +46,21 @@ function setRecordingUI(recording) {
   $("micIcon").textContent = recording ? "■" : "⌁";
   $("recordLabel").textContent = recording ? "点击结束录音 · 最长55秒" : "点击开始录音";
   $("wave").classList.toggle("listening", recording);
+  $("recordCountdown").hidden = !recording;
+  if (recording) $("recordCountdown").textContent = `剩余 ${maxRecordingSeconds} 秒`;
 }
 function updateRecordingTimer() {
   if (!recordingStartedAt) return;
   const seconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
   if (seconds >= maxRecordingSeconds) {
     $("recordStatus").textContent = "已达到55秒，正在自动结束录音…";
+    $("recordCountdown").textContent = "正在结束录音…";
     if (recorder?.state === "recording") { recorder.stop(); stopRecognition(); }
     return;
   }
   const remaining = maxRecordingSeconds - seconds;
   const hint = seconds >= 50 ? ` · 还剩 ${remaining} 秒` : " · 建议控制在30–55秒";
+  $("recordCountdown").textContent = seconds >= 50 ? `请准备收束 · 剩余 ${remaining} 秒` : `剩余 ${remaining} 秒`;
   $("recordStatus").textContent = `正在录音 · ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}${hint}`;
 }
 function escapeHTML(value = "") { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }

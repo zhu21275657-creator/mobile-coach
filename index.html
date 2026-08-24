@@ -40,6 +40,7 @@
         <button class="mic-button" id="recordButton" type="button" aria-label="开始录音" aria-pressed="false"><span id="micIcon">⌁</span></button>
         <p class="record-label" id="recordLabel">点击开始录音</p>
         <p class="record-status" id="recordStatus">首次使用时，请允许麦克风访问。</p>
+        <p class="record-countdown" id="recordCountdown" aria-live="polite" hidden>剩余 55 秒</p>
         <audio id="audio" controls hidden></audio>
       </section>
 
@@ -65,6 +66,6 @@
       <section class="bottom-space"></section>
     </main>
     <nav class="bottom-nav"><button class="active" id="trainingButton">训练</button><button id="historyButton">我的记录</button></nav>
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
   </body>
 </html>
