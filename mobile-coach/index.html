@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#143e2d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="开口练习" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css?v=2" />
+    <title>开口练习</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="top">
+        <div class="brand"><span>●</span> 开口练习</div>
+        <button class="install" id="installButton" type="button" hidden>添加到桌面</button>
+      </header>
+
+      <section class="welcome">
+        <p id="greeting">晚上好</p>
+        <h1>今天，用 3 分钟<br />让表达更清楚。</h1>
+        <div class="streak-card"><span>✦</span><strong id="streak">0</strong><small>天连续练习</small><i></i><b id="weekProgress">本周刚开始</b></div>
+      </section>
+
+      <section class="today-card">
+        <div class="eyebrow">今日训练 · 3 分钟</div>
+        <div class="skill-row"><span class="skill-tag" id="focusTag">先说结论</span><span id="scenario">日常聊天</span></div>
+        <h2 id="question">朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。</h2>
+        <div class="formula"><b>一句结论</b><span>→</span><b>两个理由</b><span>→</span><b>一句收束</b></div>
+      </section>
+
+      <section class="record-card" id="recordCard">
+        <p class="step">01 · 第一遍表达</p>
+        <p class="record-tip" id="recordTip">先开口，不需要完美。</p>
+        <div class="wave" id="wave" aria-label="麦克风输入"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <button class="mic-button" id="recordButton" type="button" aria-label="开始录音" aria-pressed="false"><span id="micIcon">⌁</span></button>
+        <p class="record-label" id="recordLabel">点击开始录音</p>
+        <p class="record-status" id="recordStatus">首次使用时，请允许麦克风访问。</p>
+        <audio id="audio" controls hidden></audio>
+      </section>
+
+      <section class="transcript-card" id="transcriptCard" hidden>
+        <div class="section-title"><div><p class="step">02 · 自动转文字</p><h3>这是你刚才的表达</h3></div><span id="transcriptState">识别中</span></div>
+        <textarea id="transcript" rows="7" placeholder="语音转写会出现在这里。你也可以直接修改。"></textarea>
+        <button class="feedback-button" id="feedbackButton" type="button">给我一个改进点</button>
+      </section>
+
+      <section class="feedback-card" id="feedbackCard" hidden>
+        <p class="step">03 · 本轮只改一件事</p>
+        <h3 id="feedbackTitle"></h3>
+        <p id="feedbackText"></p>
+        <button class="retry-button" id="retryButton" type="button">带着这个目标，再说一遍</button>
+      </section>
+
+      <section class="history-card" id="historyCard" hidden>
+        <div class="section-title"><div><p class="step">练习回顾</p><h3>我的记录</h3></div><span id="historyCount">0 次</span></div>
+        <div id="historyList" class="history-list"></div>
+      </section>
+
+      <section class="bottom-space"></section>
+    </main>
+    <nav class="bottom-nav"><button class="active" id="trainingButton">训练</button><button id="historyButton">我的记录</button></nav>
+    <script src="app.js?v=2"></script>
+  </body>
+</html>
