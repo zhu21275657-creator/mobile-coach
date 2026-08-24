@@ -57,7 +57,7 @@ function tencentAuthorization(payload, timestamp) {
 async function transcribeWithTencent(audio) {
   const timestamp = Math.floor(Date.now() / 1000);
   const requestBody = JSON.stringify({
-    EngSerivceType: "16k_zh",
+    EngSerViceType: "16k_zh",
     SourceType: 1,
     VoiceFormat: "wav",
     Data: audio.toString("base64"),
