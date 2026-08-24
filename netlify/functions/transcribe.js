@@ -40,7 +40,7 @@ function tencentAuthorization(payload, timestamp) {
   const algorithm = "TC3-HMAC-SHA256";
   const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
   const signedHeaders = "content-type;host";
-  const canonicalHeaders = `content-type:application/json;\nhost:${host};\n`;
+  const canonicalHeaders = `content-type:application/json\nhost:${host}\n`;
   const hashedPayload = crypto.createHash("sha256").update(payload).digest("hex");
   const canonicalRequest = `POST\n/\n\n${canonicalHeaders}\n${signedHeaders}\n${hashedPayload}`;
   const credentialScope = `${date}/${service}/tc3_request`;
