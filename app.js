@@ -12,32 +12,72 @@ let isStarting = false;
 let recordingActive = false;
 const transcribeEndpoint = "/api/transcribe";
 const maxRecordingSeconds = 55;
+const preferenceKey = "koukou-topic-preference";
 
 const topics = [
-  { scenario: "日常聊天", focus: "先说结论", question: "朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。" },
-  { scenario: "工作表达", focus: "说话有结构", question: "请用一分钟说清楚：你这周最重要的一项进展，以及接下来准备怎么做。" },
-  { scenario: "即兴表达", focus: "用例子说话", question: "你认为“忙”代表一个人有价值吗？先说观点，再举一个真实例子。" },
-  { scenario: "观点表达", focus: "先说观点", question: "你更喜欢独处还是热闹？先说选择，再讲一个让你这么想的经历。" },
-  { scenario: "故事叙述", focus: "讲清经过", question: "讲一次最近让你觉得有点意外的经历，按‘起因—经过—结果’说清楚。" },
-  { scenario: "沟通回应", focus: "具体地回应", question: "别人请你推荐一个最近用过的好东西，请说清楚它解决了什么问题。" },
-  { scenario: "自我介绍", focus: "说出特点", question: "用一分钟介绍自己：你擅长什么、正在练习什么、希望别人记住你哪一点？" },
-  { scenario: "情绪表达", focus: "说出感受", question: "讲一件最近让你开心或烦恼的事，并说明它为什么影响了你。" },
-  { scenario: "复盘总结", focus: "提炼经验", question: "回想一次最近做得不够好的事情：发生了什么，下次你会怎么调整？" },
-];
-let today = topics[Math.floor(Date.now() / 86400000) % topics.length];
+  ["日常社交", "日常聊天", "先说结论", "朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。"],
+  ["日常社交", "日常聊天", "接住话题", "和刚认识的人聊天时，请介绍一个你最近感兴趣的东西，并向对方抛出一个问题。"],
+  ["日常社交", "日常聊天", "自然表达", "请讲一件周末想做的事，说清楚你为什么想做、准备怎么安排。"],
+  ["职场沟通", "工作表达", "说话有结构", "请用一分钟说清楚：你这周最重要的一项进展，以及接下来准备怎么做。"],
+  ["职场沟通", "工作表达", "汇报重点", "向同事汇报一个任务：说清楚目标、目前进度和需要对方配合的地方。"],
+  ["职场沟通", "工作表达", "表达不同意见", "你不同意一个工作安排。请先认可对方的出发点，再说你的担忧和建议。"],
+  ["观点表达", "观点表达", "先说观点", "你更喜欢独处还是热闹？先说选择，再讲一个让你这么想的经历。"],
+  ["观点表达", "观点表达", "理由具体", "你认为“忙”代表一个人有价值吗？先说观点，再举一个真实例子。"],
+  ["观点表达", "观点表达", "换位思考", "有人说“年轻人应该多尝试，不要过早稳定”。你怎么看？请同时说说另一种看法。"],
+  ["故事叙述", "故事叙述", "讲清经过", "讲一次最近让你觉得有点意外的经历，按‘起因—经过—结果’说清楚。"],
+  ["故事叙述", "故事叙述", "制造画面", "讲一次你印象深刻的第一次经历，加入一个当时看到、听到或感受到的细节。"],
+  ["故事叙述", "故事叙述", "突出转折", "讲一次事情一开始不顺利、后来发生转折的经历，说清楚转折是怎么出现的。"],
+  ["即兴反应", "即兴表达", "快速组织", "请用一分钟回答：如果明天多出半天自由时间，你会怎么安排？先给方案，再解释原因。"],
+  ["即兴反应", "即兴表达", "举例说明", "有人说“坚持比天赋重要”。请不要只讲道理，立刻举一个生活中的例子。"],
+  ["即兴反应", "即兴表达", "收束观点", "请谈谈你对“仪式感”的看法，并在最后用一句话总结你的立场。"],
+  ["面试表达", "自我介绍", "说出特点", "用一分钟介绍自己：你擅长什么、正在练习什么、希望别人记住你哪一点？"],
+  ["面试表达", "面试回答", "用事实证明", "请回答“你做过最有成就感的一件事是什么”，说清背景、行动和结果。"],
+  ["面试表达", "面试回答", "真诚具体", "请回答“你正在努力改进什么”，不要说空泛的优点，给出一个真实场景。"],
+  ["情绪表达", "情绪表达", "说出感受", "讲一件最近让你开心或烦恼的事，并说明它为什么影响了你。"],
+  ["情绪表达", "情绪表达", "表达需要", "请描述一次你感到委屈或压力的时刻，并说说当时你真正需要什么。"],
+  ["情绪表达", "情绪表达", "温和坚定", "有人无意中说了让你不舒服的话。请练习用“我感到……因为……我希望……”回应。"],
+  ["说服沟通", "沟通回应", "站在对方角度", "请向朋友推荐一个你喜欢的东西，先说它能帮对方解决什么问题，再讲理由。"],
+  ["说服沟通", "沟通回应", "观点有依据", "请说服别人支持一个你喜欢的生活习惯，至少给出一个事实和一个亲身体验。"],
+  ["说服沟通", "沟通回应", "回应质疑", "别人质疑你的一个选择。请先复述对方的担心，再清楚说明你为什么仍然这样选。"],
+  ["复盘总结", "复盘总结", "提炼经验", "回想一次最近做得不够好的事情：发生了什么，下次你会怎么调整？"],
+  ["复盘总结", "复盘总结", "抓住关键", "复盘一次最近完成的任务，只讲三点：目标、最关键的动作、最后学到什么。"],
+  ["复盘总结", "复盘总结", "形成行动", "讲一次你最近拖延的事情，分析原因，并说出一个明天就能执行的改进动作。"],
+  ["汇报演讲", "汇报表达", "开场抓重点", "请向团队介绍一个你正在推进的想法：先说结论，再说价值、方案和下一步。"],
+  ["汇报演讲", "汇报表达", "信息分层", "用一分钟讲清楚一个你熟悉的流程，要求先讲整体，再讲其中两个关键步骤。"],
+  ["汇报演讲", "汇报表达", "一句话收束", "请分享一本书、一部电影或一门课，最后用一句话说清楚你推荐或不推荐的理由。"],
+].map(([category, scenario, focus, question]) => ({ category, scenario, focus, question }));
+const categories = ["全部方向", ...new Set(topics.map((topic) => topic.category))];
+let selectedCategory = localStorage.getItem(preferenceKey) || "全部方向";
+if (!categories.includes(selectedCategory)) selectedCategory = "全部方向";
+const initialPool = selectedCategory === "全部方向" ? topics : topics.filter((topic) => topic.category === selectedCategory);
+let today = initialPool[Math.floor(Date.now() / 86400000) % initialPool.length];
 
 function sessions() { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
 function dateKey(date = new Date()) { return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); }
 function streak() { const days = new Set(sessions().map((item) => item.date)); let date = new Date(); if (!days.has(dateKey(date))) date.setDate(date.getDate() - 1); let count = 0; while (days.has(dateKey(date))) { count += 1; date.setDate(date.getDate() - 1); } return count; }
 function setup() {
   const hour = new Date().getHours(); $("greeting").textContent = hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好";
+  renderTopicPicker();
   $("focusTag").textContent = today.focus; $("scenario").textContent = today.scenario; $("question").textContent = today.question;
   const count = sessions().length; $("streak").textContent = streak(); $("weekProgress").textContent = count ? `已完成 ${count} 次练习` : "本周刚开始";
 }
 function chooseTopic() {
-  const choices = topics.filter((topic) => topic !== today);
-  today = choices[Math.floor(Math.random() * choices.length)];
+  const pool = selectedCategory === "全部方向" ? topics : topics.filter((topic) => topic.category === selectedCategory);
+  const choices = pool.filter((topic) => topic !== today);
+  const available = choices.length ? choices : pool;
+  today = available[Math.floor(Math.random() * available.length)];
   setup();
+}
+function renderTopicPicker() {
+  $("topicPreferenceHint").textContent = `当前：${selectedCategory}`;
+  $("topicChips").innerHTML = categories.map((category) => `<button type="button" class="topic-chip${category === selectedCategory ? " selected" : ""}" role="option" aria-selected="${category === selectedCategory}" data-category="${escapeHTML(category)}">${escapeHTML(category)}</button>`).join("");
+  document.querySelectorAll(".topic-chip").forEach((button) => button.addEventListener("click", () => {
+    selectedCategory = button.dataset.category;
+    localStorage.setItem(preferenceKey, selectedCategory);
+    const pool = selectedCategory === "全部方向" ? topics : topics.filter((topic) => topic.category === selectedCategory);
+    today = pool[Math.floor(Math.random() * pool.length)];
+    setup();
+  }));
 }
 function setRecordingUI(recording) {
   const button = $("recordButton");
@@ -157,7 +197,7 @@ function createFeedback() {
   else if (!/(一次|那天|后来|当时|我记得)/.test(text)) { title = "补一个真实画面"; copy = "下一遍加一个真实片段：那时在哪里、谁在场、发生了什么。具体细节会让人愿意听下去。"; }
   $("feedbackTitle").textContent = title; $("feedbackText").textContent = copy; $("feedbackCard").hidden = false; $("feedbackCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
-function finishSession() { const list = sessions(); const now = new Date(); list.push({ date: dateKey(now), time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }), focus: today.focus, scenario: today.scenario, transcript: $("transcript").value.trim() }); localStorage.setItem(key, JSON.stringify(list)); $("retryButton").textContent = "今天已完成 ✓"; $("retryButton").disabled = true; setup(); renderHistory(); }
+function finishSession() { const list = sessions(); const now = new Date(); list.push({ date: dateKey(now), time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }), category: today.category, focus: today.focus, scenario: today.scenario, transcript: $("transcript").value.trim() }); localStorage.setItem(key, JSON.stringify(list)); $("retryButton").textContent = "今天已完成 ✓"; $("retryButton").disabled = true; setup(); renderHistory(); }
 window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); deferredPrompt = event; $("installButton").hidden = false; });
 $("installButton").addEventListener("click", async () => { await deferredPrompt?.prompt(); $("installButton").hidden = true; });
 $("recordButton").addEventListener("click", toggleRecord); $("feedbackButton").addEventListener("click", createFeedback); $("retryButton").addEventListener("click", finishSession);
