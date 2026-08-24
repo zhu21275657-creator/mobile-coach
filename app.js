@@ -80,7 +80,7 @@ async function toggleRecord() {
       if (spokenText) { showTranscript("已转文字", spokenText); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
       else { showTranscript("待云端转写", ""); $("recordStatus").textContent = "录音已保存。云端转写服务接入后，文字会自动出现在下方。"; }
     };
-    recorder.start(); const browserTranscription = startRecognition(); recordingStartedAt = Date.now(); recordingTimer = setInterval(updateRecordingTimer, 1000); setRecordingUI(true); $("recordStatus").textContent = browserTranscription ? "正在录音，并同步转文字…" : "正在录音…";
+    recorder.start(); const browserTranscription = startRecognition(); recordingStartedAt = Date.now(); recordingTimer = setInterval(updateRecordingTimer, 1000); setRecordingUI(true); $("recordButton").disabled = false; $("recordStatus").textContent = browserTranscription ? "正在录音，并同步转文字…" : "正在录音…";
   } catch { $("recordStatus").textContent = "请允许浏览器使用麦克风后重试。"; $("recordButton").disabled = false; }
   finally { isStarting = false; }
 }
