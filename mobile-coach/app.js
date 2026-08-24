@@ -10,6 +10,7 @@ let recordingStartedAt = 0;
 let recordingTimer;
 let isStarting = false;
 let recordingActive = false;
+const transcribeEndpoint = "/api/transcribe";
 
 const topics = [
   { scenario: "日常聊天", focus: "先说结论", question: "朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。" },
@@ -77,6 +78,15 @@ function startRecognition() {
   } catch { return false; }
 }
 function stopRecognition() { try { recognition?.stop(); } catch {} }
+async function transcribeAudio(blob) {
+  const form = new FormData();
+  form.append("file", blob, "recording.wav");
+  const response = await fetch(transcribeEndpoint, { method: "POST", body: form });
+  let result = {};
+  try { result = await response.json(); } catch {}
+  if (!response.ok) throw new Error(result.error || "云端转写失败");
+  return String(result.text || "").trim();
+}
 async function normalizeAudioBlob(blob) {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return blob;
@@ -110,7 +120,16 @@ async function toggleRecord() {
       const sourceBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); $("recordStatus").textContent = "正在整理录音…"; const blob = await normalizeAudioBlob(sourceBlob); const audio = $("audio"); audio.src = URL.createObjectURL(blob); audio.hidden = false;
       stream.getTracks().forEach((track) => track.stop()); setRecordingUI(false); $("recordLabel").textContent = "录音已完成"; $("recordButton").disabled = false;
       if (spokenText) { showTranscript("已转文字", spokenText); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
-      else { showTranscript("待云端转写", ""); $("recordStatus").textContent = "录音已保存。云端转写服务接入后，文字会自动出现在下方。"; }
+      else {
+        showTranscript("云端转写中", ""); $("recordStatus").textContent = "正在上传录音并转文字…";
+        try {
+          const transcript = await transcribeAudio(blob);
+          if (transcript) { spokenText = transcript; showTranscript("已转文字", transcript); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
+          else { showTranscript("未识别到文字", ""); $("recordStatus").textContent = "没有识别到清晰语音，可以直接编辑文字。"; }
+        } catch (error) {
+          showTranscript("转写失败", ""); $("recordStatus").textContent = `云端转写失败：${error.message}，你可以手动输入文字。`;
+        }
+      }
     };
     recorder.start(); recordingActive = true; const browserTranscription = startRecognition(); recordingStartedAt = Date.now(); recordingTimer = setInterval(updateRecordingTimer, 1000); setRecordingUI(true); $("recordButton").disabled = false; $("recordStatus").textContent = browserTranscription ? "正在录音，并同步转文字…" : "正在录音…";
   } catch { recordingActive = false; $("recordStatus").textContent = "请允许浏览器使用麦克风后重试。"; $("recordButton").disabled = false; }
