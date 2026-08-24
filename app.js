@@ -77,6 +77,21 @@ function startRecognition() {
   } catch { return false; }
 }
 function stopRecognition() { try { recognition?.stop(); } catch {} }
+async function normalizeAudioBlob(blob) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return blob;
+  const context = new AudioContextClass();
+  try {
+    const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+    const channels = Math.min(buffer.numberOfChannels, 2); const frameCount = buffer.length; const bytesPerSample = 2;
+    const output = new ArrayBuffer(44 + frameCount * channels * bytesPerSample); const view = new DataView(output);
+    const writeString = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+    writeString(0, "RIFF"); view.setUint32(4, 36 + frameCount * channels * bytesPerSample, true); writeString(8, "WAVE"); writeString(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, channels, true); view.setUint32(24, buffer.sampleRate, true); view.setUint32(28, buffer.sampleRate * channels * bytesPerSample, true); view.setUint16(32, channels * bytesPerSample, true); view.setUint16(34, 16, true); writeString(36, "data"); view.setUint32(40, frameCount * channels * bytesPerSample, true);
+    let offset = 44;
+    for (let frame = 0; frame < frameCount; frame += 1) for (let channel = 0; channel < channels; channel += 1) { const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[frame])); view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true); offset += 2; }
+    return new Blob([output], { type: "audio/wav" });
+  } catch { return blob; } finally { try { await context.close(); } catch {} }
+}
 async function toggleRecord() {
   if (isStarting) return;
   if (recordingActive) {
@@ -89,10 +104,10 @@ async function toggleRecord() {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true }); chunks = []; spokenText = "";
     recorder = new MediaRecorder(stream);
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
-    recorder.onstop = () => {
+    recorder.onstop = async () => {
       recordingActive = false;
       clearInterval(recordingTimer); recordingStartedAt = 0;
-      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); const audio = $("audio"); audio.src = URL.createObjectURL(blob); audio.hidden = false;
+      const sourceBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); $("recordStatus").textContent = "正在整理录音…"; const blob = await normalizeAudioBlob(sourceBlob); const audio = $("audio"); audio.src = URL.createObjectURL(blob); audio.hidden = false;
       stream.getTracks().forEach((track) => track.stop()); setRecordingUI(false); $("recordLabel").textContent = "录音已完成"; $("recordButton").disabled = false;
       if (spokenText) { showTranscript("已转文字", spokenText); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
       else { showTranscript("待云端转写", ""); $("recordStatus").textContent = "录音已保存。云端转写服务接入后，文字会自动出现在下方。"; }
