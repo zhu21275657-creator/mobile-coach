@@ -53,8 +53,8 @@ function updateRecordingTimer() {
   if (!recordingStartedAt) return;
   const seconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
   if (seconds >= maxRecordingSeconds) {
-    $("recordStatus").textContent = "已达到55秒，正在自动结束录音…";
-    $("recordCountdown").textContent = "正在结束录音…";
+    $("recordStatus").textContent = "已达到55秒，正在整理录音…";
+    $("recordCountdown").textContent = "录音已自动停止";
     if (recorder?.state === "recording") { recorder.stop(); stopRecognition(); }
     return;
   }
@@ -130,6 +130,7 @@ async function toggleRecord() {
     recorder.onstop = async () => {
       recordingActive = false;
       clearInterval(recordingTimer); recordingStartedAt = 0;
+      $("recordCountdown").hidden = true;
       const sourceBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); $("recordStatus").textContent = "正在整理录音…"; const blob = await normalizeAudioBlob(sourceBlob); const audio = $("audio"); audio.src = URL.createObjectURL(blob); audio.hidden = false;
       stream.getTracks().forEach((track) => track.stop()); setRecordingUI(false); $("recordLabel").textContent = "录音已完成"; $("recordButton").disabled = false;
       if (spokenText) { showTranscript("已转文字", spokenText); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
