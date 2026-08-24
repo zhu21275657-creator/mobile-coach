@@ -1,4 +1,4 @@
-const CACHE = "koukou-mobile-v2";
+const CACHE = "koukou-mobile-v3";
 const ASSETS = ["./", "./index.html", "./styles.css?v=2", "./app.js?v=2", "./manifest.webmanifest", "./icon.svg"];
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))));
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
