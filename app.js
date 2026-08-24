@@ -163,5 +163,5 @@ $("recordButton").addEventListener("click", toggleRecord); $("feedbackButton").a
 $("historyButton").addEventListener("click", openHistory); $("trainingButton").addEventListener("click", openTraining);
 $("topicButton").addEventListener("click", chooseTopic); $("refreshButton").addEventListener("click", chooseTopic);
 document.addEventListener("visibilitychange", () => { if (document.hidden && recordingActive) { try { recorder?.stop(); } catch {} stopRecognition(); $("recordStatus").textContent = "页面暂时离开，录音已安全结束。"; } });
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=8", { updateViaCache: "none" });
 setup();
