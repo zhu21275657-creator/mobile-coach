@@ -9,12 +9,20 @@ let spokenText = "";
 let recordingStartedAt = 0;
 let recordingTimer;
 let isStarting = false;
+let recordingActive = false;
 
-const today = [
+const topics = [
   { scenario: "日常聊天", focus: "先说结论", question: "朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。" },
   { scenario: "工作表达", focus: "说话有结构", question: "请用一分钟说清楚：你这周最重要的一项进展，以及接下来准备怎么做。" },
   { scenario: "即兴表达", focus: "用例子说话", question: "你认为“忙”代表一个人有价值吗？先说观点，再举一个真实例子。" },
-][Math.floor(Date.now() / 86400000) % 3];
+  { scenario: "观点表达", focus: "先说观点", question: "你更喜欢独处还是热闹？先说选择，再讲一个让你这么想的经历。" },
+  { scenario: "故事叙述", focus: "讲清经过", question: "讲一次最近让你觉得有点意外的经历，按‘起因—经过—结果’说清楚。" },
+  { scenario: "沟通回应", focus: "具体地回应", question: "别人请你推荐一个最近用过的好东西，请说清楚它解决了什么问题。" },
+  { scenario: "自我介绍", focus: "说出特点", question: "用一分钟介绍自己：你擅长什么、正在练习什么、希望别人记住你哪一点？" },
+  { scenario: "情绪表达", focus: "说出感受", question: "讲一件最近让你开心或烦恼的事，并说明它为什么影响了你。" },
+  { scenario: "复盘总结", focus: "提炼经验", question: "回想一次最近做得不够好的事情：发生了什么，下次你会怎么调整？" },
+];
+let today = topics[Math.floor(Date.now() / 86400000) % topics.length];
 
 function sessions() { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
 function dateKey(date = new Date()) { return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); }
@@ -23,6 +31,11 @@ function setup() {
   const hour = new Date().getHours(); $("greeting").textContent = hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好";
   $("focusTag").textContent = today.focus; $("scenario").textContent = today.scenario; $("question").textContent = today.question;
   const count = sessions().length; $("streak").textContent = streak(); $("weekProgress").textContent = count ? `已完成 ${count} 次练习` : "本周刚开始";
+}
+function chooseTopic() {
+  const choices = topics.filter((topic) => topic !== today);
+  today = choices[Math.floor(Math.random() * choices.length)];
+  setup();
 }
 function setRecordingUI(recording) {
   const button = $("recordButton");
@@ -66,7 +79,10 @@ function startRecognition() {
 function stopRecognition() { try { recognition?.stop(); } catch {} }
 async function toggleRecord() {
   if (isStarting) return;
-  if (recorder?.state === "recording") { recorder.stop(); stopRecognition(); return; }
+  if (recordingActive) {
+    try { if (recorder?.state === "recording") recorder.stop(); else recordingActive = false; } catch { $("recordStatus").textContent = "录音停止失败，请再点一次结束录音。"; }
+    stopRecognition(); return;
+  }
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { $("recordStatus").textContent = "当前浏览器不支持录音，请在 Chrome 或 Safari 中打开。"; return; }
   isStarting = true; $("recordButton").disabled = true; $("recordStatus").textContent = "正在请求麦克风权限…";
   try {
@@ -74,14 +90,15 @@ async function toggleRecord() {
     recorder = new MediaRecorder(stream);
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
     recorder.onstop = () => {
+      recordingActive = false;
       clearInterval(recordingTimer); recordingStartedAt = 0;
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); const audio = $("audio"); audio.src = URL.createObjectURL(blob); audio.hidden = false;
       stream.getTracks().forEach((track) => track.stop()); setRecordingUI(false); $("recordLabel").textContent = "录音已完成"; $("recordButton").disabled = false;
       if (spokenText) { showTranscript("已转文字", spokenText); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
       else { showTranscript("待云端转写", ""); $("recordStatus").textContent = "录音已保存。云端转写服务接入后，文字会自动出现在下方。"; }
     };
-    recorder.start(); const browserTranscription = startRecognition(); recordingStartedAt = Date.now(); recordingTimer = setInterval(updateRecordingTimer, 1000); setRecordingUI(true); $("recordButton").disabled = false; $("recordStatus").textContent = browserTranscription ? "正在录音，并同步转文字…" : "正在录音…";
-  } catch { $("recordStatus").textContent = "请允许浏览器使用麦克风后重试。"; $("recordButton").disabled = false; }
+    recorder.start(); recordingActive = true; const browserTranscription = startRecognition(); recordingStartedAt = Date.now(); recordingTimer = setInterval(updateRecordingTimer, 1000); setRecordingUI(true); $("recordButton").disabled = false; $("recordStatus").textContent = browserTranscription ? "正在录音，并同步转文字…" : "正在录音…";
+  } catch { recordingActive = false; $("recordStatus").textContent = "请允许浏览器使用麦克风后重试。"; $("recordButton").disabled = false; }
   finally { isStarting = false; }
 }
 function createFeedback() {
@@ -97,6 +114,7 @@ window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault
 $("installButton").addEventListener("click", async () => { await deferredPrompt?.prompt(); $("installButton").hidden = true; });
 $("recordButton").addEventListener("click", toggleRecord); $("feedbackButton").addEventListener("click", createFeedback); $("retryButton").addEventListener("click", finishSession);
 $("historyButton").addEventListener("click", openHistory); $("trainingButton").addEventListener("click", openTraining);
-document.addEventListener("visibilitychange", () => { if (document.hidden && recorder?.state === "recording") { recorder.stop(); stopRecognition(); $("recordStatus").textContent = "页面暂时离开，录音已安全结束。"; } });
+$("topicButton").addEventListener("click", chooseTopic); $("refreshButton").addEventListener("click", chooseTopic);
+document.addEventListener("visibilitychange", () => { if (document.hidden && recordingActive) { try { recorder?.stop(); } catch {} stopRecognition(); $("recordStatus").textContent = "页面暂时离开，录音已安全结束。"; } });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 setup();
