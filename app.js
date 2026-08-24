@@ -11,6 +11,7 @@ let recordingTimer;
 let isStarting = false;
 let recordingActive = false;
 const transcribeEndpoint = "/api/transcribe";
+const maxRecordingSeconds = 55;
 
 const topics = [
   { scenario: "日常聊天", focus: "先说结论", question: "朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。" },
@@ -43,13 +44,20 @@ function setRecordingUI(recording) {
   button.classList.toggle("recording", recording); button.setAttribute("aria-pressed", String(recording));
   button.setAttribute("aria-label", recording ? "结束录音" : "开始录音");
   $("micIcon").textContent = recording ? "■" : "⌁";
-  $("recordLabel").textContent = recording ? "点击结束录音" : "点击开始录音";
+  $("recordLabel").textContent = recording ? "点击结束录音 · 最长55秒" : "点击开始录音";
   $("wave").classList.toggle("listening", recording);
 }
 function updateRecordingTimer() {
   if (!recordingStartedAt) return;
   const seconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
-  $("recordStatus").textContent = `正在录音 · ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  if (seconds >= maxRecordingSeconds) {
+    $("recordStatus").textContent = "已达到55秒，正在自动结束录音…";
+    if (recorder?.state === "recording") { recorder.stop(); stopRecognition(); }
+    return;
+  }
+  const remaining = maxRecordingSeconds - seconds;
+  const hint = seconds >= 50 ? ` · 还剩 ${remaining} 秒` : " · 建议控制在30–55秒";
+  $("recordStatus").textContent = `正在录音 · ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}${hint}`;
 }
 function escapeHTML(value = "") { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }
 function renderHistory() {
@@ -132,7 +140,7 @@ async function toggleRecord() {
         }
       }
     };
-    recorder.start(); recordingActive = true; const browserTranscription = startRecognition(); recordingStartedAt = Date.now(); recordingTimer = setInterval(updateRecordingTimer, 1000); setRecordingUI(true); $("recordButton").disabled = false; $("recordStatus").textContent = browserTranscription ? "正在录音，并同步转文字…" : "正在录音…";
+    recorder.start(); recordingActive = true; const browserTranscription = startRecognition(); recordingStartedAt = Date.now(); recordingTimer = setInterval(updateRecordingTimer, 1000); setRecordingUI(true); $("recordButton").disabled = false; $("recordStatus").textContent = browserTranscription ? "正在录音，并同步转文字…建议控制在30–55秒" : "正在录音…建议控制在30–55秒";
   } catch { recordingActive = false; $("recordStatus").textContent = "请允许浏览器使用麦克风后重试。"; $("recordButton").disabled = false; }
   finally { isStarting = false; }
 }

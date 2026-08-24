@@ -1,5 +1,5 @@
 const crypto = require("node:crypto");
-const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -88,7 +88,7 @@ exports.handler = async (event) => {
 
   try {
     const raw = Buffer.from(event.body || "", event.isBase64Encoded ? "base64" : "utf8");
-    if (!raw.length || raw.length > MAX_AUDIO_BYTES) return json(413, { error: "音频为空或超过 25MB 限制" });
+    if (!raw.length || raw.length > MAX_AUDIO_BYTES) return json(413, { error: "音频为空或超过 3MB 限制" });
     const requestHeaders = event.headers || {};
     const contentType = requestHeaders["content-type"] || requestHeaders["Content-Type"] || "";
     const { audio } = parseMultipart(raw, contentType);
