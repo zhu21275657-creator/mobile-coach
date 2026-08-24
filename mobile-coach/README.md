@@ -24,4 +24,4 @@ python3 -m http.server 4174 --directory mobile-coach
 然后打开 `http://localhost:4174`。手机使用时需要把它部署到一个 HTTPS 网址，不能使用电脑的 localhost 地址。
 ## 云端语音转文字配置
 
-浏览器原生语音识别不可用时，录音结束会通过 `/api/transcribe` 调用 Netlify Function。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `OPENAI_API_KEY`，再重新部署。API 密钥只保存在 Netlify，不要写入前端文件。
+浏览器原生语音识别不可用时，录音结束会通过 `/api/transcribe` 调用 Netlify Function，再由腾讯云 ASR 完成普通话转写。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `TENCENT_SECRET_ID` 和 `TENCENT_SECRET_KEY`，再重新部署。密钥只保存在 Netlify，不要写入前端文件。

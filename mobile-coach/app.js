@@ -93,12 +93,13 @@ async function normalizeAudioBlob(blob) {
   const context = new AudioContextClass();
   try {
     const buffer = await context.decodeAudioData(await blob.arrayBuffer());
-    const channels = Math.min(buffer.numberOfChannels, 2); const frameCount = buffer.length; const bytesPerSample = 2;
+    const channels = 1; const targetRate = 16000; const frameCount = Math.ceil(buffer.duration * targetRate); const bytesPerSample = 2;
     const output = new ArrayBuffer(44 + frameCount * channels * bytesPerSample); const view = new DataView(output);
     const writeString = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
-    writeString(0, "RIFF"); view.setUint32(4, 36 + frameCount * channels * bytesPerSample, true); writeString(8, "WAVE"); writeString(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, channels, true); view.setUint32(24, buffer.sampleRate, true); view.setUint32(28, buffer.sampleRate * channels * bytesPerSample, true); view.setUint16(32, channels * bytesPerSample, true); view.setUint16(34, 16, true); writeString(36, "data"); view.setUint32(40, frameCount * channels * bytesPerSample, true);
+    writeString(0, "RIFF"); view.setUint32(4, 36 + frameCount * channels * bytesPerSample, true); writeString(8, "WAVE"); writeString(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, channels, true); view.setUint32(24, targetRate, true); view.setUint32(28, targetRate * channels * bytesPerSample, true); view.setUint16(32, channels * bytesPerSample, true); view.setUint16(34, 16, true); writeString(36, "data"); view.setUint32(40, frameCount * channels * bytesPerSample, true);
     let offset = 44;
-    for (let frame = 0; frame < frameCount; frame += 1) for (let channel = 0; channel < channels; channel += 1) { const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[frame])); view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true); offset += 2; }
+    const sourceChannels = Array.from({ length: buffer.numberOfChannels }, (_, channel) => buffer.getChannelData(channel));
+    for (let frame = 0; frame < frameCount; frame += 1) { const sourceFrame = Math.min(buffer.length - 1, Math.floor(frame * buffer.sampleRate / targetRate)); const sample = sourceChannels.reduce((sum, data) => sum + data[sourceFrame], 0) / sourceChannels.length; const clipped = Math.max(-1, Math.min(1, sample)); view.setInt16(offset, clipped < 0 ? clipped * 0x8000 : clipped * 0x7fff, true); offset += 2; }
     return new Blob([output], { type: "audio/wav" });
   } catch { return blob; } finally { try { await context.close(); } catch {} }
 }
