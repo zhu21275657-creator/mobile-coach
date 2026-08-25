@@ -21,6 +21,15 @@ if (!goals.includes(selectedGoal)) selectedGoal = "自动选择";
 let practiceRound = 1;
 let firstTranscript = "";
 let firstFeedback = null;
+let secondFeedback = null;
+let currentAudioBlob = null;
+const audioDbName = "koukou-audio-db";
+const audioStoreName = "recordings";
+const supabaseConfig = window.SUPABASE_CONFIG || {};
+const cloudClient = window.supabase && supabaseConfig.url && supabaseConfig.anonKey
+  ? window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
+  : null;
+let currentUser = null;
 
 const topics = [
   ["日常社交", "日常聊天", "先说结论", "朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。"],
@@ -61,6 +70,53 @@ const initialPool = selectedCategory === "全部方向" ? topics : topics.filter
 let today = initialPool[Math.floor(Date.now() / 86400000) % initialPool.length];
 
 function sessions() { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
+function setAccountStatus(status, hint = "") { $("accountStatus").textContent = status; if (hint) $("accountHint").textContent = hint; }
+function mapCloudSession(row) { return { id: row.id, date: row.date, time: row.time || "", category: row.category || "", focus: row.focus || "", scenario: row.scenario || "", question: row.question || "", firstTranscript: row.first_transcript || "", firstFeedback: row.first_feedback || null, secondTranscript: row.second_transcript || "", secondFeedback: row.second_feedback || null, transcript: row.second_transcript || row.first_transcript || "", audioPath: row.audio_path || "", audioSaved: Boolean(row.audio_path), cloud: true }; }
+function mapSessionForCloud(item, userId, audioPath = item.audioPath || null) { return { id: item.id, user_id: userId, date: item.date, time: item.time || "", category: item.category || "", focus: item.focus || "", scenario: item.scenario || "", question: item.question || "", first_transcript: item.firstTranscript || "", first_feedback: item.firstFeedback || null, second_transcript: item.secondTranscript || item.transcript || "", second_feedback: item.secondFeedback || null, audio_path: audioPath }; }
+async function syncToCloud() {
+  if (!cloudClient || !currentUser) return;
+  const button = $("syncButton"); button.disabled = true; button.textContent = "同步中…"; setAccountStatus("正在同步", "正在备份练习记录和录音…");
+  try {
+    const local = sessions();
+    for (const item of local) {
+      let audioPath = item.audioPath || null;
+      if (item.audioSaved && !audioPath) { const blob = await getAudioBlob(item.id); if (blob) { audioPath = `${currentUser.id}/${item.id}.wav`; const upload = await cloudClient.storage.from("practice-audio").upload(audioPath, blob, { contentType: "audio/wav", upsert: true }); if (upload.error) throw upload.error; } }
+      const { error } = await cloudClient.from("practice_sessions").upsert(mapSessionForCloud(item, currentUser.id, audioPath));
+      if (error) throw error;
+      if (audioPath && !item.audioPath) item.audioPath = audioPath;
+    }
+    const { data, error } = await cloudClient.from("practice_sessions").select("*").order("created_at", { ascending: true });
+    if (error) throw error;
+    const merged = new Map(local.map((item) => [item.id, item])); (data || []).map(mapCloudSession).forEach((item) => merged.set(item.id, { ...merged.get(item.id), ...item }));
+    localStorage.setItem(key, JSON.stringify([...merged.values()])); setAccountStatus("已连接云端", `${merged.size} 条练习已安全备份`); renderHistory(); setup();
+  } catch (error) { setAccountStatus("同步失败", "本地记录仍然保留，请检查 Supabase 配置后重试。"); console.error(error); }
+  finally { button.disabled = false; button.textContent = "立即同步"; }
+}
+async function initCloudAccount() {
+  if (!cloudClient) { setAccountStatus("仅保存在本机", "配置 Supabase 后，可绑定邮箱并云端备份。 "); return; }
+  const { data } = await cloudClient.auth.getSession(); currentUser = data.session?.user || null; updateAccountUI();
+  cloudClient.auth.onAuthStateChange((_event, session) => { currentUser = session?.user || null; updateAccountUI(); if (currentUser) syncToCloud(); });
+}
+function updateAccountUI() { $("signedOutActions").hidden = Boolean(currentUser); $("signedInActions").hidden = !currentUser; if (currentUser) { $("accountEmail").textContent = currentUser.email || "已登录"; setAccountStatus("已连接云端", "登录后会自动同步练习记录"); } }
+async function requestLogin() { if (!cloudClient) { setAccountStatus("尚未配置", "请先在 supabase-config.js 填入项目地址和 anon key。 "); return; } const email = $("emailInput").value.trim(); if (!email) { $("emailInput").focus(); return; } const button = $("loginButton"); button.disabled = true; button.textContent = "发送中…"; const { error } = await cloudClient.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href.split("#")[0] } }); button.disabled = false; button.textContent = "绑定邮箱"; setAccountStatus(error ? "发送失败" : "请查收邮箱", error ? error.message : "点击邮件中的登录链接，即可完成绑定。 "); }
+async function logout() { if (cloudClient) await cloudClient.auth.signOut(); currentUser = null; updateAccountUI(); setAccountStatus("仅保存在本机", "已退出云端，新的练习仍会先保存在本机。 "); }
+function openAudioDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error("当前浏览器不支持录音保存"));
+    const request = indexedDB.open(audioDbName, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(audioStoreName);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function saveAudioBlob(id, blob) {
+  if (!blob) return false;
+  try { const db = await openAudioDB(); await new Promise((resolve, reject) => { const tx = db.transaction(audioStoreName, "readwrite"); tx.objectStore(audioStoreName).put(blob, id); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close(); return true; } catch { return false; }
+}
+async function getAudioBlob(id) {
+  if (!id) return null;
+  try { const db = await openAudioDB(); const blob = await new Promise((resolve, reject) => { const request = db.transaction(audioStoreName, "readonly").objectStore(audioStoreName).get(id); request.onsuccess = () => resolve(request.result || null); request.onerror = () => reject(request.error); }); db.close(); return blob; } catch { return null; }
+}
 function dateKey(date = new Date()) { return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); }
 function streak() { const days = new Set(sessions().map((item) => item.date)); let date = new Date(); if (!days.has(dateKey(date))) date.setDate(date.getDate() - 1); let count = 0; while (days.has(dateKey(date))) { count += 1; date.setDate(date.getDate() - 1); } return count; }
 function setup() {
@@ -130,7 +186,20 @@ function escapeHTML(value = "") { return value.replace(/[&<>"']/g, (char) => ({ 
 function renderHistory() {
   const list = sessions().slice().reverse();
   $("historyCount").textContent = `${list.length} 次`;
-  $("historyList").innerHTML = list.length ? list.map((item) => `<article class="history-item"><div><strong>${escapeHTML(item.focus)}</strong><small>${escapeHTML(item.date)} · ${escapeHTML(item.time || "")}</small></div><p>${escapeHTML(item.transcript || "完成了一次口头表达练习")}</p></article>`).join("") : '<p class="empty-history">完成一次练习后，这里会留下你的表达轨迹。</p>';
+  if (!list.length) { $("historyList").innerHTML = '<p class="empty-history">完成一次练习后，这里会留下你的表达轨迹。</p>'; $("progressSummary").innerHTML = ""; return; }
+  const secondTexts = list.filter((item) => item.secondTranscript).length;
+  $("progressSummary").innerHTML = `<div><strong>${list.length}</strong><small>累计练习</small></div><div><strong>${secondTexts}</strong><small>完成二次表达</small></div><div><strong>${streak()}</strong><small>当前连续天数</small></div>`;
+  $("historyList").innerHTML = list.map((item, index) => {
+    const id = escapeHTML(item.id || `legacy-${index}`);
+    const first = item.firstTranscript || "";
+    const second = item.secondTranscript || item.transcript || "";
+    return `<article class="history-item" data-session-id="${id}"><div class="history-item-heading"><div><strong>${escapeHTML(item.focus)}</strong><small>${escapeHTML(item.date)} · ${escapeHTML(item.time || "")}</small></div><button class="detail-button" type="button">查看详情</button></div><p class="history-question">${escapeHTML(item.question || item.scenario || "口头表达练习")}</p><div class="history-detail" hidden><div class="history-audio-wrap" data-audio-id="${id}" data-audio-path="${escapeHTML(item.audioPath || "")}"></div>${first ? `<div class="version"><b>第一遍</b><p>${escapeHTML(first)}</p>${item.firstFeedback ? `<small>改进点：${escapeHTML(item.firstFeedback.title || "")}</small>` : ""}</div>` : ""}<div class="version"><b>${item.secondTranscript ? "第二遍" : "本次表达"}</b><p>${escapeHTML(second || "未保存文字")}</p>${item.secondFeedback ? `<small>复盘：${escapeHTML(item.secondFeedback.title || "")}</small>` : ""}</div></div></article>`;
+  }).join("");
+  document.querySelectorAll(".detail-button").forEach((button) => button.addEventListener("click", async () => {
+    const detail = button.closest(".history-item").querySelector(".history-detail");
+    detail.hidden = !detail.hidden; button.textContent = detail.hidden ? "查看详情" : "收起详情";
+    if (!detail.hidden) { const wrap = detail.querySelector(".history-audio-wrap"); if (!wrap.dataset.loaded) { wrap.dataset.loaded = "1"; const blob = await getAudioBlob(wrap.dataset.audioId); let source = blob ? URL.createObjectURL(blob) : ""; if (!source && cloudClient && currentUser && wrap.dataset.audioPath) { const remote = await cloudClient.storage.from("practice-audio").createSignedUrl(wrap.dataset.audioPath, 3600); source = remote.data?.signedUrl || ""; } if (source) { const audio = document.createElement("audio"); audio.controls = true; audio.src = source; wrap.appendChild(audio); } else wrap.textContent = "本条没有保存录音"; } }
+  }));
 }
 function openHistory() {
   $("historyCard").hidden = false; renderHistory();
@@ -194,7 +263,7 @@ async function toggleRecord() {
       recordingActive = false;
       clearInterval(recordingTimer); recordingStartedAt = 0;
       $("recordCountdown").hidden = true;
-      const sourceBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); $("recordStatus").textContent = "正在整理录音…"; const blob = await normalizeAudioBlob(sourceBlob); const audio = $("audio"); audio.src = URL.createObjectURL(blob); audio.hidden = false;
+      const sourceBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); $("recordStatus").textContent = "正在整理录音…"; const blob = await normalizeAudioBlob(sourceBlob); currentAudioBlob = blob; const audio = $("audio"); audio.src = URL.createObjectURL(blob); audio.hidden = false;
       stream.getTracks().forEach((track) => track.stop()); setRecordingUI(false); $("recordLabel").textContent = "录音已完成"; $("recordButton").disabled = false;
       if (spokenText) { showTranscript("已转文字", spokenText); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
       else {
@@ -223,7 +292,7 @@ async function createFeedback() {
     if (!response.ok) throw new Error(result.error || "AI 反馈失败");
     $("feedbackTitle").textContent = result.title; $("feedbackText").textContent = result.text;
     if (practiceRound === 1) { firstTranscript = text; firstFeedback = result; $("retryButton").textContent = "带着这个目标，再说一遍"; }
-    else { $("retryButton").textContent = "完成本次练习"; }
+    else { secondFeedback = result; $("retryButton").textContent = "完成本次练习"; }
     $("feedbackCard").hidden = false; $("feedbackCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (error) {
     $("transcriptState").textContent = "分析失败";
@@ -231,16 +300,18 @@ async function createFeedback() {
   } finally { button.disabled = false; button.textContent = "给我一个 AI 改进点"; }
 }
 function retryPractice() {
-  practiceRound = 2; $("roundLabel").textContent = "02 · 带着目标再说一遍"; $("recordTip").textContent = `这一遍只练：${selectedGoal === "自动选择" ? today.focus : selectedGoal}`;
+  practiceRound = 2; secondFeedback = null; $("roundLabel").textContent = "02 · 带着目标再说一遍"; $("recordTip").textContent = `这一遍只练：${selectedGoal === "自动选择" ? today.focus : selectedGoal}`;
   $("transcriptCard").hidden = true; $("feedbackCard").hidden = true; $("audio").hidden = true; $("transcript").value = ""; $("recordStatus").textContent = "准备好后，再按下录音按钮。"; $("recordLabel").textContent = "点击开始第二遍录音";
   toggleRecord();
 }
-function finishSession() { const list = sessions(); const now = new Date(); list.push({ date: dateKey(now), time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }), category: today.category, focus: selectedGoal === "自动选择" ? today.focus : selectedGoal, scenario: today.scenario, transcript: $("transcript").value.trim(), firstTranscript, firstFeedback }); localStorage.setItem(key, JSON.stringify(list)); $("retryButton").textContent = "今天已完成 ✓"; $("retryButton").disabled = true; setup(); renderHistory(); }
+async function finishSession() { const list = sessions(); const now = new Date(); const id = `session-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`; const secondTranscript = $("transcript").value.trim(); const item = { id, date: dateKey(now), time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }), category: today.category, focus: selectedGoal === "自动选择" ? today.focus : selectedGoal, scenario: today.scenario, question: today.question, firstTranscript, firstFeedback, secondTranscript, secondFeedback, transcript: secondTranscript, audioSaved: await saveAudioBlob(id, currentAudioBlob) }; list.push(item); localStorage.setItem(key, JSON.stringify(list)); if (currentUser) await syncToCloud(); $("retryButton").textContent = "今天已完成 ✓"; $("retryButton").disabled = true; $("recordStatus").textContent = item.audioSaved ? "已保存录音、转写和复盘记录。" : "已保存文字和复盘记录（录音保存失败）。"; setup(); renderHistory(); }
 window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); deferredPrompt = event; $("installButton").hidden = false; });
 $("installButton").addEventListener("click", async () => { await deferredPrompt?.prompt(); $("installButton").hidden = true; });
 $("recordButton").addEventListener("click", toggleRecord); $("feedbackButton").addEventListener("click", createFeedback); $("retryButton").addEventListener("click", () => practiceRound === 1 ? retryPractice() : finishSession());
 $("historyButton").addEventListener("click", openHistory); $("trainingButton").addEventListener("click", openTraining);
 $("topicButton").addEventListener("click", chooseTopic); $("refreshButton").addEventListener("click", chooseTopic);
+$("loginButton").addEventListener("click", requestLogin); $("syncButton").addEventListener("click", syncToCloud); $("logoutButton").addEventListener("click", logout);
 document.addEventListener("visibilitychange", () => { if (document.hidden && recordingActive) { try { recorder?.stop(); } catch {} stopRecognition(); $("recordStatus").textContent = "页面暂时离开，录音已安全结束。"; } });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=8", { updateViaCache: "none" });
 setup();
+initCloudAccount();
