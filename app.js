@@ -26,9 +26,18 @@ let currentAudioBlob = null;
 const audioDbName = "koukou-audio-db";
 const audioStoreName = "recordings";
 const supabaseConfig = window.SUPABASE_CONFIG || {};
-const cloudClient = window.supabase && supabaseConfig.url && supabaseConfig.anonKey
-  ? window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
-  : null;
+function createRestClient(config) {
+  if (!config.url || !config.anonKey) return null;
+  const base = config.url.replace(/\/$/, ""); const authKey = "koukou-supabase-session"; let callback = null;
+  const headers = (token) => ({ apikey: config.anonKey, Authorization: `Bearer ${token || config.anonKey}`, "Content-Type": "application/json" });
+  const getStoredSession = () => { try { return JSON.parse(localStorage.getItem(authKey) || "null"); } catch { return null; } };
+  const saveSession = (session) => { if (session) localStorage.setItem(authKey, JSON.stringify(session)); else localStorage.removeItem(authKey); };
+  const consumeHashSession = () => { const params = new URLSearchParams(window.location.hash.replace(/^#/, "")); const access = params.get("access_token"); if (!access) return getStoredSession(); const session = { access_token: access, refresh_token: params.get("refresh_token") || "", user: { email: params.get("user_email") || "" } }; saveSession(session); history.replaceState(null, "", window.location.pathname + window.location.search); return session; };
+  const request = async (path, options = {}, token) => { const response = await fetch(`${base}${path}`, { ...options, headers: { ...headers(token), ...(options.headers || {}) } }); let data = null; try { data = await response.json(); } catch {} if (!response.ok) throw new Error(data?.msg || data?.message || data?.error_description || data?.error || `请求失败（${response.status}）`); return data; };
+  const client = { auth: { async getSession() { const session = consumeHashSession(); return { data: { session } }; }, onAuthStateChange(fn) { callback = fn; const session = consumeHashSession(); if (session) setTimeout(() => fn("SIGNED_IN", session), 0); return { data: { subscription: { unsubscribe() { callback = null; } } } }; }, async signInWithOtp({ email, options }) { const data = await request("/auth/v1/otp", { method: "POST", body: JSON.stringify({ email, create_user: true, options: { emailRedirectTo: options?.emailRedirectTo } }) }); return { data, error: null }; }, async signOut() { saveSession(null); if (callback) callback("SIGNED_OUT", null); return { error: null }; } }, from(table) { let query = ""; return { async upsert(row) { await request(`/rest/v1/${table}?on_conflict=id`, { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(row) }, getStoredSession()?.access_token); return { error: null }; }, select() { const chain = { order(_column, opts = {}) { query = `?select=*&order=created_at.${opts.ascending === false ? "desc" : "asc"}`; return chain; }, async then(resolve, reject) { try { const data = await request(`/rest/v1/${table}${query || "?select=*"}`, {}, getStoredSession()?.access_token); resolve({ data, error: null }); } catch (error) { reject(error); } } }; return chain; } }; }, storage: { from(bucket) { return { async upload(path, blob, options = {}) { await request(`/storage/v1/object/${bucket}/${path}`, { method: "POST", headers: { "Content-Type": options.contentType || blob.type || "application/octet-stream", "x-upsert": String(Boolean(options.upsert)) }, body: blob }, getStoredSession()?.access_token); return { data: { path }, error: null }; }, async createSignedUrl(path, expiresIn) { const data = await request(`/storage/v1/object/sign/${bucket}/${path}`, { method: "POST", body: JSON.stringify({ expiresIn }) }, getStoredSession()?.access_token); return { data: { signedUrl: `${base}/storage/v1${data.signedURL || data.signedUrl}` }, error: null }; } }; } } };
+  return client;
+}
+const cloudClient = createRestClient(supabaseConfig);
 let currentUser = null;
 
 const topics = [
