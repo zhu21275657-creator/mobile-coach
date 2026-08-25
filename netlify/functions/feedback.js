@@ -12,7 +12,7 @@ function json(statusCode, body) {
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers, body: "" };
   if (event.httpMethod !== "POST") return json(405, { error: "只支持 POST 请求" });
-  if (!process.env.OPENAI_API_KEY) return json(503, { error: "AI 反馈服务尚未配置密钥" });
+  if (!process.env.ZHIPU_API_KEY) return json(503, { error: "智谱 AI 反馈服务尚未配置密钥" });
 
   try {
     const input = JSON.parse(event.body || "{}");
@@ -33,14 +33,14 @@ exports.handler = async (event) => {
 {"title":"不超过16个字的改进点标题","text":"80到140字的具体建议，指出表达中的一个证据，并给出下一遍可以直接照做的练习方法"}
 
 要求：不要编造用户没有说过的内容；不要评价口音、长相或人格；不要一次提出多个问题；即使表达很好，也要给一个可继续优化的小点。`;
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.ZHIPU_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_FEEDBACK_MODEL || "gpt-4o-mini",
+        model: process.env.ZHIPU_FEEDBACK_MODEL || "glm-4-flash",
         temperature: 0.4,
         response_format: { type: "json_object" },
         messages: [

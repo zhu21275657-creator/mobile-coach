@@ -25,3 +25,7 @@ python3 -m http.server 4174 --directory mobile-coach
 ## 云端语音转文字配置
 
 浏览器原生语音识别不可用时，录音结束会通过 `/api/transcribe` 调用 Netlify Function，再由腾讯云 ASR 完成普通话转写。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `TENCENT_SECRET_ID` 和 `TENCENT_SECRET_KEY`，再重新部署。密钥只保存在 Netlify，不要写入前端文件。
+
+## AI 表达反馈配置
+
+反馈接口默认使用智谱 `glm-4-flash`。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `ZHIPU_API_KEY`。如需切换模型，可新增 `ZHIPU_FEEDBACK_MODEL`，例如 `glm-4-flash`。密钥只保存在 Netlify，不要写入前端文件。
