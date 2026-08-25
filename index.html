@@ -30,6 +30,8 @@
         <div class="topic-picker">
           <div class="picker-heading"><span>选择训练方向</span><small id="topicPreferenceHint">当前：全部方向</small></div>
           <div class="topic-chips" id="topicChips" role="listbox" aria-label="训练方向"></div>
+          <div class="picker-heading goal-heading"><span>本轮训练目标</span><small id="goalPreferenceHint">自动选择</small></div>
+          <div class="topic-chips" id="goalChips" role="listbox" aria-label="训练目标"></div>
         </div>
         <div class="skill-row"><span class="skill-tag" id="focusTag">先说结论</span><span id="scenario">日常聊天</span></div>
         <h2 id="question">朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。</h2>
@@ -38,7 +40,7 @@
       </section>
 
       <section class="record-card" id="recordCard">
-        <p class="step">01 · 第一遍表达</p>
+        <p class="step" id="roundLabel">01 · 第一遍表达</p>
         <p class="record-tip" id="recordTip">先开口，不需要完美。</p>
         <div class="wave" id="wave" aria-label="麦克风输入"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <button class="mic-button" id="recordButton" type="button" aria-label="开始录音" aria-pressed="false"><span id="micIcon">⌁</span></button>

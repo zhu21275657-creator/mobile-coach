@@ -17,6 +17,7 @@ exports.handler = async (event) => {
   try {
     const input = JSON.parse(event.body || "{}");
     const category = String(input.category || "全部方向").slice(0, 40);
+    const goal = String(input.goal || "表达更清晰").slice(0, 60);
     const scenario = String(input.scenario || "口头表达").slice(0, 40);
     const question = String(input.question || "").slice(0, 500);
     const transcript = String(input.transcript || "").trim().slice(0, 6000);
@@ -25,6 +26,7 @@ exports.handler = async (event) => {
     const prompt = `你是一位温和、具体、鼓励行动的中文口才教练。请分析用户的表达，并只给出一个最值得优先改进的点。
 
 训练方向：${category}
+本轮训练目标：${goal}
 训练场景：${scenario}
 训练题目：${question}
 用户转写：${transcript}
@@ -32,7 +34,7 @@ exports.handler = async (event) => {
 请严格返回 JSON，不要 Markdown，格式如下：
 {"title":"不超过16个字的改进点标题","text":"80到140字的具体建议，指出表达中的一个证据，并给出下一遍可以直接照做的练习方法"}
 
-要求：不要编造用户没有说过的内容；不要评价口音、长相或人格；不要一次提出多个问题；即使表达很好，也要给一个可继续优化的小点。`;
+要求：不要编造用户没有说过的内容；不要评价口音、长相或人格；不要一次提出多个问题；反馈必须围绕本轮训练目标；即使表达很好，也要给一个可继续优化的小点。`;
     const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
       method: "POST",
       headers: {

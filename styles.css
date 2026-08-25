@@ -12,3 +12,4 @@
 .transcript-note{color:var(--muted);font-size:11px;line-height:1.5;margin:8px 2px 0}
 .record-countdown{display:inline-block;margin:8px 0 0;padding:5px 10px;border-radius:999px;background:var(--mint);color:var(--green);font-size:12px;font-weight:800}
 .topic-picker{margin:15px 0 2px}.picker-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;color:var(--deep);font-size:12px;font-weight:800}.picker-heading small{color:var(--muted);font-size:11px;font-weight:500}.topic-chips{display:flex;gap:7px;overflow-x:auto;padding:1px 1px 5px;scrollbar-width:none}.topic-chips::-webkit-scrollbar{display:none}.topic-chip{flex:0 0 auto;border:1px solid #d5e3d8;border-radius:999px;background:rgba(255,255,255,.72);color:#537060;padding:7px 10px;font-size:11px;font-weight:700;white-space:nowrap}.topic-chip.selected{border-color:var(--green);background:var(--deep);color:#fff;box-shadow:0 3px 7px rgba(20,62,45,.14)}
+.goal-heading{margin-top:12px}

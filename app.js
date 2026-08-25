@@ -14,6 +14,13 @@ const transcribeEndpoint = "/api/transcribe";
 const feedbackEndpoint = "/api/feedback";
 const maxRecordingSeconds = 55;
 const preferenceKey = "koukou-topic-preference";
+const goalKey = "koukou-goal-preference";
+const goals = ["自动选择", "先说结论", "结构清晰", "讲得具体", "减少填充词", "表达有说服力"];
+let selectedGoal = localStorage.getItem(goalKey) || "自动选择";
+if (!goals.includes(selectedGoal)) selectedGoal = "自动选择";
+let practiceRound = 1;
+let firstTranscript = "";
+let firstFeedback = null;
 
 const topics = [
   ["日常社交", "日常聊天", "先说结论", "朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。"],
@@ -63,11 +70,17 @@ function setup() {
   const count = sessions().length; $("streak").textContent = streak(); $("weekProgress").textContent = count ? `已完成 ${count} 次练习` : "本周刚开始";
 }
 function chooseTopic() {
-  const pool = selectedCategory === "全部方向" ? topics : topics.filter((topic) => topic.category === selectedCategory);
+  const pool = getTopicPool();
   const choices = pool.filter((topic) => topic !== today);
   const available = choices.length ? choices : pool;
   today = available[Math.floor(Math.random() * available.length)];
   setup();
+}
+function getTopicPool() {
+  const categoryPool = selectedCategory === "全部方向" ? topics : topics.filter((topic) => topic.category === selectedCategory);
+  if (selectedGoal === "自动选择") return categoryPool;
+  const goalPool = categoryPool.filter((topic) => topic.focus === selectedGoal);
+  return goalPool.length ? goalPool : categoryPool;
 }
 function renderTopicPicker() {
   $("topicPreferenceHint").textContent = `当前：${selectedCategory}`;
@@ -75,7 +88,16 @@ function renderTopicPicker() {
   document.querySelectorAll(".topic-chip").forEach((button) => button.addEventListener("click", () => {
     selectedCategory = button.dataset.category;
     localStorage.setItem(preferenceKey, selectedCategory);
-    const pool = selectedCategory === "全部方向" ? topics : topics.filter((topic) => topic.category === selectedCategory);
+    const pool = selectedGoal === "自动选择" ? (selectedCategory === "全部方向" ? topics : topics.filter((topic) => topic.category === selectedCategory)) : getTopicPool();
+    today = pool[Math.floor(Math.random() * pool.length)];
+    setup();
+  }));
+  $("goalPreferenceHint").textContent = `当前：${selectedGoal}`;
+  $("goalChips").innerHTML = goals.map((goal) => `<button type="button" class="topic-chip${goal === selectedGoal ? " selected" : ""}" role="option" aria-selected="${goal === selectedGoal}" data-goal="${escapeHTML(goal)}">${escapeHTML(goal)}</button>`).join("");
+  document.querySelectorAll("#goalChips .topic-chip").forEach((button) => button.addEventListener("click", () => {
+    selectedGoal = button.dataset.goal;
+    localStorage.setItem(goalKey, selectedGoal);
+    const pool = getTopicPool();
     today = pool[Math.floor(Math.random() * pool.length)];
     setup();
   }));
@@ -196,20 +218,27 @@ async function createFeedback() {
   const button = $("feedbackButton"); button.disabled = true; button.textContent = "AI 正在分析你的表达…";
   $("transcriptState").textContent = "分析中";
   try {
-    const response = await fetch(feedbackEndpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: selectedCategory, scenario: today.scenario, question: today.question, transcript: text }) });
+    const response = await fetch(feedbackEndpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: selectedCategory, goal: selectedGoal === "自动选择" ? today.focus : selectedGoal, scenario: today.scenario, question: today.question, transcript: text }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "AI 反馈失败");
     $("feedbackTitle").textContent = result.title; $("feedbackText").textContent = result.text;
+    if (practiceRound === 1) { firstTranscript = text; firstFeedback = result; $("retryButton").textContent = "带着这个目标，再说一遍"; }
+    else { $("retryButton").textContent = "完成本次练习"; }
     $("feedbackCard").hidden = false; $("feedbackCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (error) {
     $("transcriptState").textContent = "分析失败";
     $("recordStatus").textContent = `AI 反馈失败：${error.message}，请稍后重试。`;
   } finally { button.disabled = false; button.textContent = "给我一个 AI 改进点"; }
 }
-function finishSession() { const list = sessions(); const now = new Date(); list.push({ date: dateKey(now), time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }), category: today.category, focus: today.focus, scenario: today.scenario, transcript: $("transcript").value.trim() }); localStorage.setItem(key, JSON.stringify(list)); $("retryButton").textContent = "今天已完成 ✓"; $("retryButton").disabled = true; setup(); renderHistory(); }
+function retryPractice() {
+  practiceRound = 2; $("roundLabel").textContent = "02 · 带着目标再说一遍"; $("recordTip").textContent = `这一遍只练：${selectedGoal === "自动选择" ? today.focus : selectedGoal}`;
+  $("transcriptCard").hidden = true; $("feedbackCard").hidden = true; $("audio").hidden = true; $("transcript").value = ""; $("recordStatus").textContent = "准备好后，再按下录音按钮。"; $("recordLabel").textContent = "点击开始第二遍录音";
+  toggleRecord();
+}
+function finishSession() { const list = sessions(); const now = new Date(); list.push({ date: dateKey(now), time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }), category: today.category, focus: selectedGoal === "自动选择" ? today.focus : selectedGoal, scenario: today.scenario, transcript: $("transcript").value.trim(), firstTranscript, firstFeedback }); localStorage.setItem(key, JSON.stringify(list)); $("retryButton").textContent = "今天已完成 ✓"; $("retryButton").disabled = true; setup(); renderHistory(); }
 window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); deferredPrompt = event; $("installButton").hidden = false; });
 $("installButton").addEventListener("click", async () => { await deferredPrompt?.prompt(); $("installButton").hidden = true; });
-$("recordButton").addEventListener("click", toggleRecord); $("feedbackButton").addEventListener("click", createFeedback); $("retryButton").addEventListener("click", finishSession);
+$("recordButton").addEventListener("click", toggleRecord); $("feedbackButton").addEventListener("click", createFeedback); $("retryButton").addEventListener("click", () => practiceRound === 1 ? retryPractice() : finishSession());
 $("historyButton").addEventListener("click", openHistory); $("trainingButton").addEventListener("click", openTraining);
 $("topicButton").addEventListener("click", chooseTopic); $("refreshButton").addEventListener("click", chooseTopic);
 document.addEventListener("visibilitychange", () => { if (document.hidden && recordingActive) { try { recorder?.stop(); } catch {} stopRecognition(); $("recordStatus").textContent = "页面暂时离开，录音已安全结束。"; } });
