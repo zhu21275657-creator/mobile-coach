@@ -11,6 +11,7 @@ let recordingTimer;
 let isStarting = false;
 let recordingActive = false;
 const transcribeEndpoint = "/api/transcribe";
+const feedbackEndpoint = "/api/feedback";
 const maxRecordingSeconds = 55;
 const preferenceKey = "koukou-topic-preference";
 
@@ -189,13 +190,21 @@ async function toggleRecord() {
   } catch { recordingActive = false; $("recordStatus").textContent = "请允许浏览器使用麦克风后重试。"; $("recordButton").disabled = false; }
   finally { isStarting = false; }
 }
-function createFeedback() {
-  const text = $("transcript").value.trim(); if (text.length < 10) { $("transcriptState").textContent = "请补充内容"; return; }
-  const fillers = (text.match(/(嗯|呃|那个|然后|就是)/g) || []).length;
-  let title = "先把结论放到第一句"; let copy = "重说时，先用一句话回答“我最想表达什么”，再解释原因。听的人会更容易跟上你。";
-  if (fillers >= 3) { title = "用停顿替代填充词"; copy = `这段里出现了 ${fillers} 个常见填充词。下一遍遇到空白时，停半秒再继续；停顿比“嗯、那个”更有力量。`; }
-  else if (!/(一次|那天|后来|当时|我记得)/.test(text)) { title = "补一个真实画面"; copy = "下一遍加一个真实片段：那时在哪里、谁在场、发生了什么。具体细节会让人愿意听下去。"; }
-  $("feedbackTitle").textContent = title; $("feedbackText").textContent = copy; $("feedbackCard").hidden = false; $("feedbackCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+async function createFeedback() {
+  const text = $("transcript").value.trim();
+  if (text.length < 10) { $("transcriptState").textContent = "请补充内容"; return; }
+  const button = $("feedbackButton"); button.disabled = true; button.textContent = "AI 正在分析你的表达…";
+  $("transcriptState").textContent = "分析中";
+  try {
+    const response = await fetch(feedbackEndpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: selectedCategory, scenario: today.scenario, question: today.question, transcript: text }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "AI 反馈失败");
+    $("feedbackTitle").textContent = result.title; $("feedbackText").textContent = result.text;
+    $("feedbackCard").hidden = false; $("feedbackCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (error) {
+    $("transcriptState").textContent = "分析失败";
+    $("recordStatus").textContent = `AI 反馈失败：${error.message}，请稍后重试。`;
+  } finally { button.disabled = false; button.textContent = "给我一个 AI 改进点"; }
 }
 function finishSession() { const list = sessions(); const now = new Date(); list.push({ date: dateKey(now), time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }), category: today.category, focus: today.focus, scenario: today.scenario, transcript: $("transcript").value.trim() }); localStorage.setItem(key, JSON.stringify(list)); $("retryButton").textContent = "今天已完成 ✓"; $("retryButton").disabled = true; setup(); renderHistory(); }
 window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); deferredPrompt = event; $("installButton").hidden = false; });
