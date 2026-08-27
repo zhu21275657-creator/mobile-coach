@@ -234,10 +234,24 @@ function stopRecognition() { try { recognition?.stop(); } catch {} }
 async function transcribeAudio(blob) {
   const form = new FormData();
   form.append("file", blob, "recording.wav");
-  const response = await fetch(transcribeEndpoint, { method: "POST", body: form });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  let response;
+  try {
+    response = await fetch(transcribeEndpoint, { method: "POST", body: form, signal: controller.signal });
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("云端转写等待超时");
+    throw new Error("无法连接云端转写服务");
+  } finally {
+    clearTimeout(timeout);
+  }
   let result = {};
   try { result = await response.json(); } catch {}
-  if (!response.ok) throw new Error(result.error || "云端转写失败");
+  if (!response.ok) {
+    const error = new Error(result.error || "云端转写失败");
+    error.code = result.code || "TRANSCRIBE_FAILED";
+    throw error;
+  }
   return String(result.text || "").trim();
 }
 async function normalizeAudioBlob(blob) {
@@ -282,7 +296,9 @@ async function toggleRecord() {
           if (transcript) { spokenText = transcript; showTranscript("已转文字", transcript); $("recordStatus").textContent = "文字已自动填入，可以直接开始复盘。"; }
           else { showTranscript("未识别到文字", ""); $("recordStatus").textContent = "没有识别到清晰语音，可以直接编辑文字。"; }
         } catch (error) {
-          showTranscript("转写失败", ""); $("recordStatus").textContent = `云端转写失败：${error.message}，你可以手动输入文字。`;
+          showTranscript("可手动输入", "");
+          const hint = error.code === "TRANSCRIBE_NOT_CONFIGURED" ? "当前部署还没有读到腾讯云配置，请联系管理员检查 Netlify 环境和重新部署" : error.message;
+          $("recordStatus").textContent = `录音已保存，但${hint}。请直接在下方输入或粘贴文字，仍可继续复盘。`;
         }
       }
     };
@@ -321,6 +337,6 @@ $("historyButton").addEventListener("click", openHistory); $("trainingButton").a
 $("topicButton").addEventListener("click", chooseTopic); $("refreshButton").addEventListener("click", chooseTopic);
 $("loginButton").addEventListener("click", requestLogin); $("syncButton").addEventListener("click", syncToCloud); $("logoutButton").addEventListener("click", logout);
 document.addEventListener("visibilitychange", () => { if (document.hidden && recordingActive) { try { recorder?.stop(); } catch {} stopRecognition(); $("recordStatus").textContent = "页面暂时离开，录音已安全结束。"; } });
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=8", { updateViaCache: "none" });
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=9", { updateViaCache: "none" });
 setup();
 initCloudAccount();

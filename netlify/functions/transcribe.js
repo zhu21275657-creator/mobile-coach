@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
+const TENCENT_TIMEOUT_MS = 25000;
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +13,12 @@ function json(statusCode, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
 }
 
+function hasTencentCredentials() {
+  return Boolean(process.env.TENCENT_SECRET_ID && process.env.TENCENT_SECRET_KEY);
+}
+
 function parseMultipart(body, contentType) {
+  if (!/^multipart\/form-data\b/i.test(contentType)) throw new Error("请求不是 multipart/form-data");
   const match = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
   if (!match) throw new Error("缺少音频上传边界");
   const boundary = Buffer.from(`--${match[1] || match[2]}`);
@@ -63,28 +69,51 @@ async function transcribeWithTencent(audio) {
     Data: audio.toString("base64"),
     DataLen: audio.length,
   });
-  const response = await fetch("https://asr.tencentcloudapi.com/", {
-    method: "POST",
-    headers: {
-      Authorization: tencentAuthorization(requestBody, timestamp),
-      "Content-Type": "application/json",
-      Host: "asr.tencentcloudapi.com",
-      "X-TC-Action": "SentenceRecognition",
-      "X-TC-Version": "2019-06-14",
-      "X-TC-Region": "ap-guangzhou",
-      "X-TC-Timestamp": String(timestamp),
-    },
-    body: requestBody,
-  });
-  const result = await response.json();
-  if (!response.ok || result.Response?.Error) throw new Error(result.Response?.Error?.Message || "腾讯云转写失败");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TENCENT_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch("https://asr.tencentcloudapi.com/", {
+      method: "POST",
+      headers: {
+        Authorization: tencentAuthorization(requestBody, timestamp),
+        "Content-Type": "application/json",
+        Host: "asr.tencentcloudapi.com",
+        "X-TC-Action": "SentenceRecognition",
+        "X-TC-Version": "2019-06-14",
+        "X-TC-Region": "ap-guangzhou",
+        "X-TC-Timestamp": String(timestamp),
+      },
+      body: requestBody,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("腾讯云请求超时，请稍后重试");
+    throw new Error("无法连接腾讯云，请检查 Netlify 网络配置");
+  } finally {
+    clearTimeout(timeout);
+  }
+  let result = {};
+  try { result = await response.json(); } catch { throw new Error("腾讯云返回了无效响应"); }
+  if (!response.ok || result.Response?.Error) {
+    const error = new Error(result.Response?.Error?.Message || `腾讯云转写失败（${response.status}）`);
+    error.statusCode = response.status >= 500 ? 502 : 400;
+    throw error;
+  }
   return String(result.Response?.Result || "").trim();
 }
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers, body: "" };
+  if (event.httpMethod === "GET") {
+    return json(200, {
+      ok: hasTencentCredentials(),
+      service: "tencent-asr",
+      message: hasTencentCredentials() ? "云端转写配置已被当前函数读取" : "当前函数未读取到腾讯云密钥",
+    });
+  }
   if (event.httpMethod !== "POST") return json(405, { error: "只支持 POST 请求" });
-  if (!process.env.TENCENT_SECRET_ID || !process.env.TENCENT_SECRET_KEY) return json(503, { error: "腾讯云转写服务尚未配置密钥" });
+  if (!hasTencentCredentials()) return json(503, { code: "TRANSCRIBE_NOT_CONFIGURED", error: "当前部署未读取到腾讯云密钥，请检查 Netlify 环境和部署版本" });
 
   try {
     const raw = Buffer.from(event.body || "", event.isBase64Encoded ? "base64" : "utf8");
@@ -92,8 +121,9 @@ exports.handler = async (event) => {
     const requestHeaders = event.headers || {};
     const contentType = requestHeaders["content-type"] || requestHeaders["Content-Type"] || "";
     const { audio } = parseMultipart(raw, contentType);
+    if (!audio.length) return json(400, { code: "EMPTY_AUDIO", error: "没有收到有效音频" });
     return json(200, { text: await transcribeWithTencent(audio) });
   } catch (error) {
-    return json(400, { error: error.message || "无法处理录音" });
+    return json(error.statusCode || 400, { code: error.code || "TRANSCRIBE_FAILED", error: error.message || "无法处理录音" });
   }
 };

@@ -20,13 +20,17 @@
 ## 本地预览
 
 ```bash
-python3 -m http.server 4174 --directory mobile-coach
+python3 -m http.server 4174
 ```
 
 然后打开 `http://localhost:4174`。手机使用时需要把它部署到一个 HTTPS 网址，不能使用电脑的 localhost 地址。
 ## 云端语音转文字配置
 
-浏览器原生语音识别不可用时，录音结束会通过 `/api/transcribe` 调用 Netlify Function，再由腾讯云 ASR 完成普通话转写。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `TENCENT_SECRET_ID` 和 `TENCENT_SECRET_KEY`，再重新部署。密钥只保存在 Netlify，不要写入前端文件。
+浏览器原生语音识别不可用时，录音结束会通过 `/api/transcribe` 调用 Netlify Function，再由腾讯云 ASR 完成普通话转写。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `TENCENT_SECRET_ID` 和 `TENCENT_SECRET_KEY`，点击重新部署（只保存环境变量而不重新部署不会生效）。密钥只保存在 Netlify，不要写入前端文件。未配置时，录音和本机保存仍可用，用户可以直接手动输入文字。
+
+可在浏览器打开 `/api/transcribe` 做配置自检：返回 `ok: true` 表示当前正在运行的 Netlify Function 已读到两个变量；返回 `ok: false` 则说明配置不在当前 Site/环境，或配置后尚未重新部署。该检查不会返回密钥内容。
+
+电脑不需要一直开着：Netlify Functions 和腾讯云负责云端转写，手机直接访问已部署的网址即可。只有本地开发预览时才需要电脑运行本地服务器。Supabase 邮箱登录只用于跨设备同步，不登录也能在当前手机本地使用；腾讯云和智谱的密钥由云端服务使用，用户不需要在手机上登录这些平台。
 
 ## AI 表达反馈配置
 
