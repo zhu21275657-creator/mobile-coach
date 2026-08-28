@@ -3,11 +3,19 @@ const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 const TENCENT_TIMEOUT_MS = 25000;
 
 const headers = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": process.env.APP_ORIGIN || "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json; charset=utf-8",
 };
+const rateWindow = new Map();
+function allowed(event) {
+  const ip = event.headers?.["x-nf-client-connection-ip"] || event.headers?.["x-forwarded-for"] || "unknown";
+  const now = Date.now(); const current = rateWindow.get(ip);
+  if (!current || now - current.startedAt > 10 * 60 * 1000) { rateWindow.set(ip, { startedAt: now, count: 1 }); return true; }
+  if (current.count >= 10) return false;
+  current.count += 1; return true;
+}
 
 function json(statusCode, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
@@ -113,6 +121,7 @@ exports.handler = async (event) => {
     });
   }
   if (event.httpMethod !== "POST") return json(405, { error: "只支持 POST 请求" });
+  if (!allowed(event)) return json(429, { error: "请求过于频繁，请稍后再试" });
   if (!hasTencentCredentials()) return json(503, { code: "TRANSCRIBE_NOT_CONFIGURED", error: "当前部署未读取到腾讯云密钥，请检查 Netlify 环境和部署版本" });
 
   try {

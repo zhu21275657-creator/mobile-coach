@@ -10,11 +10,24 @@ create table if not exists public.practice_sessions (
   question text,
   first_transcript text,
   first_feedback jsonb,
+  first_metrics jsonb,
+  first_duration_seconds integer,
   second_transcript text,
   second_feedback jsonb,
+  second_metrics jsonb,
+  second_duration_seconds integer,
+  first_audio_path text,
+  second_audio_path text,
   audio_path text,
   created_at timestamptz not null default now()
 );
+
+alter table public.practice_sessions add column if not exists first_audio_path text;
+alter table public.practice_sessions add column if not exists second_audio_path text;
+alter table public.practice_sessions add column if not exists first_metrics jsonb;
+alter table public.practice_sessions add column if not exists first_duration_seconds integer;
+alter table public.practice_sessions add column if not exists second_metrics jsonb;
+alter table public.practice_sessions add column if not exists second_duration_seconds integer;
 
 alter table public.practice_sessions enable row level security;
 drop policy if exists "users can read own practice sessions" on public.practice_sessions;

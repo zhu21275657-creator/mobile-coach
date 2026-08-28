@@ -5,6 +5,8 @@
 ## 已有功能
 
 - 每日 3 分钟训练题、连续练习记录和单点反馈
+- 10 个训练方向、每个方向 15 个题目，分为入门/进阶/挑战三个阶段
+- 题目按练习次数逐步提升难度，并自动避开最近练过的题目
 - 手机端录音与回听
 - 浏览器具备语音识别能力时，边录音边自动填入文字
 - 完成练习后将训练重点、时间和转写内容保存在本机“我的记录”
@@ -34,4 +36,4 @@ python3 -m http.server 4174
 
 ## AI 表达反馈配置
 
-反馈接口默认使用智谱 `glm-4-flash`。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `ZHIPU_API_KEY`。如需切换模型，可新增 `ZHIPU_FEEDBACK_MODEL`，例如 `glm-4-flash`。密钥只保存在 Netlify，不要写入前端文件。
+反馈接口默认使用智谱 `glm-4-flash`。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `ZHIPU_API_KEY`。如需切换模型，可新增 `ZHIPU_FEEDBACK_MODEL`，例如 `glm-4-flash`。密钥只保存在 Netlify，不要写入前端文件。生产环境建议设置 `APP_ORIGIN` 为正式站点地址，用于收紧跨域来源。反馈接口每个运行实例每 10 分钟最多处理 20 次，转写接口最多处理 10 次；正式公开运营仍建议接入网关级限流。
