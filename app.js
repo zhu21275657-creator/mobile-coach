@@ -15,6 +15,7 @@ const feedbackEndpoint = "/api/feedback";
 const maxRecordingSeconds = 55;
 const preferenceKey = "koukou-topic-preference";
 const goalKey = "koukou-goal-preference";
+const recentTopicsKey = "koukou-recent-topics";
 const draftKey = "koukou-practice-draft";
 const goals = ["自动选择", "先说结论", "结构清晰", "讲得具体", "减少填充词", "表达有说服力"];
 const goalFocusMap = {
