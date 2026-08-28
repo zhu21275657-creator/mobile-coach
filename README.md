@@ -26,14 +26,27 @@ python3 -m http.server 4174
 ```
 
 然后打开 `http://localhost:4174`。手机使用时需要把它部署到一个 HTTPS 网址，不能使用电脑的 localhost 地址。
-## 云端语音转文字配置
+## Cloudflare Pages + Workers 部署
 
-浏览器原生语音识别不可用时，录音结束会通过 `/api/transcribe` 调用 Netlify Function，再由腾讯云 ASR 完成普通话转写。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `TENCENT_SECRET_ID` 和 `TENCENT_SECRET_KEY`，点击重新部署（只保存环境变量而不重新部署不会生效）。密钥只保存在 Netlify，不要写入前端文件。未配置时，录音和本机保存仍可用，用户可以直接手动输入文字。
+前端发布到 Cloudflare Pages，`worker/` 中的 Cloudflare Worker 提供 `/api/transcribe` 和 `/api/feedback`。在 Worker 中使用 `wrangler secret put TENCENT_SECRET_ID`、`wrangler secret put TENCENT_SECRET_KEY` 和 `wrangler secret put ZHIPU_API_KEY` 写入密钥；不要把密钥写入前端或提交到仓库。Pages 项目需将 `/api/*` 路由绑定到该 Worker（可通过 Cloudflare Dashboard 的 Worker Route 配置，或将 Worker 绑定到 Pages 使用的自定义域名）。
 
-可在浏览器打开 `/api/transcribe` 做配置自检：返回 `ok: true` 表示当前正在运行的 Netlify Function 已读到两个变量；返回 `ok: false` 则说明配置不在当前 Site/环境，或配置后尚未重新部署。该检查不会返回密钥内容。
+部署 Worker：
 
-电脑不需要一直开着：Netlify Functions 和腾讯云负责云端转写，手机直接访问已部署的网址即可。只有本地开发预览时才需要电脑运行本地服务器。Supabase 邮箱登录只用于跨设备同步，不登录也能在当前手机本地使用；腾讯云和智谱的密钥由云端服务使用，用户不需要在手机上登录这些平台。
+```bash
+cd worker
+npx wrangler login
+npx wrangler secret put TENCENT_SECRET_ID
+npx wrangler secret put TENCENT_SECRET_KEY
+npx wrangler secret put ZHIPU_API_KEY
+npx wrangler deploy
+```
+
+未配置密钥时，录音和本机保存仍可用，用户可以直接手动输入文字。
+
+可在浏览器打开 `/api/transcribe` 做配置自检：返回 `ok: true` 表示当前 Worker 已读到两个变量；该检查不会返回密钥内容。
+
+电脑不需要一直开着：Cloudflare Workers、腾讯云和智谱负责云端能力，手机直接访问 Pages 网址即可。只有本地开发预览时才需要电脑运行本地服务器。Supabase 邮箱登录只用于跨设备同步，不登录也能在当前手机本地使用；腾讯云和智谱的密钥由云端服务使用，用户不需要在手机上登录这些平台。
 
 ## AI 表达反馈配置
 
-反馈接口默认使用智谱 `glm-4-flash`。部署到 Netlify 后，在 Site configuration → Environment variables 中新增 `ZHIPU_API_KEY`。如需切换模型，可新增 `ZHIPU_FEEDBACK_MODEL`，例如 `glm-4-flash`。密钥只保存在 Netlify，不要写入前端文件。生产环境建议设置 `APP_ORIGIN` 为正式站点地址，用于收紧跨域来源。反馈接口每个运行实例每 10 分钟最多处理 20 次，转写接口最多处理 10 次；正式公开运营仍建议接入网关级限流。
+反馈接口默认使用智谱 `glm-4-flash`。如需切换模型，可在 Worker 中设置 `ZHIPU_FEEDBACK_MODEL`。生产环境建议设置 `APP_ORIGIN` 为正式 Pages 站点地址，用于收紧跨域来源。反馈接口每个运行实例每 10 分钟最多处理 20 次，转写接口最多处理 10 次；正式公开运营仍建议接入网关级限流。

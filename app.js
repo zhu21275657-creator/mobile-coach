@@ -399,7 +399,7 @@ async function toggleRecord() {
           else { showTranscript("未识别到文字", ""); $("recordStatus").textContent = "没有识别到清晰语音，可以直接编辑文字。"; }
         } catch (error) {
           showTranscript("可手动输入", "");
-          const hint = error.code === "TRANSCRIBE_NOT_CONFIGURED" ? "当前部署还没有读到腾讯云配置，请联系管理员检查 Netlify 环境和重新部署" : error.message;
+          const hint = error.code === "TRANSCRIBE_NOT_CONFIGURED" ? "当前部署还没有读到腾讯云配置，请联系管理员检查 Worker 环境和重新部署" : error.message;
           $("recordStatus").textContent = `录音已保存，但${hint}。请直接在下方输入或粘贴文字，仍可继续复盘。`;
         }
       }

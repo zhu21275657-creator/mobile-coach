@@ -1,0 +1,13 @@
+name = "koukou-api"
+main = "src/index.js"
+compatibility_date = "2026-08-28"
+workers_dev = false
+
+# Set these as encrypted Worker secrets, never commit real values here:
+# wrangler secret put TENCENT_SECRET_ID
+# wrangler secret put TENCENT_SECRET_KEY
+# wrangler secret put ZHIPU_API_KEY
+
+[vars]
+ZHIPU_FEEDBACK_MODEL = "glm-4-flash"
+# APP_ORIGIN = "https://your-pages-domain.pages.dev"
