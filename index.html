@@ -36,13 +36,12 @@
         <div class="topic-picker">
           <div class="picker-heading"><span>选择训练方向</span><small id="topicPreferenceHint">当前：全部方向</small></div>
           <div class="topic-chips" id="topicChips" role="listbox" aria-label="训练方向"></div>
-          <div class="picker-heading goal-heading"><span>本轮训练目标</span><small id="goalPreferenceHint">自动选择</small></div>
-          <div class="topic-chips" id="goalChips" role="listbox" aria-label="训练目标"></div>
         </div>
+        <p class="topic-helper">不确定练什么？直接从今天的话题开始。</p>
         <div class="skill-row"><span class="skill-tag" id="focusTag">先说结论</span><span id="difficultyTag" class="difficulty-tag">入门</span><span id="scenario">日常聊天</span></div>
         <h2 id="question">朋友问你最近怎么样。请讲一件最近发生的小事，不要只回答“还行”。</h2>
         <div class="formula"><b>一句结论</b><span>→</span><b>两个理由</b><span>→</span><b>一句收束</b></div>
-        <div class="topic-actions"><button id="topicButton" type="button">换一个话题</button><button id="refreshButton" type="button">刷新生成</button></div>
+        <div class="topic-actions"><button id="topicButton" type="button">换一个话题</button></div>
       </section>
 
       <section class="record-card" id="recordCard">
@@ -83,6 +82,6 @@
     </main>
     <nav class="bottom-nav" aria-label="主导航"><button class="active" id="trainingButton" type="button" aria-label="训练">训练</button><button id="historyButton" type="button" aria-label="我的记录">我的记录</button></nav>
     <script src="supabase-config.js"></script>
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=15"></script>
   </body>
 </html>
